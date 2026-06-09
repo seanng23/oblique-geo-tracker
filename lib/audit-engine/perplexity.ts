@@ -47,7 +47,7 @@ export async function queryPerplexity(
   }
 
   return {
-    platform: 'perplexity',
+    platform: 'claude',
     prompt_id: promptId,
     raw_response: content,
     model_used: data.model ?? MODEL,

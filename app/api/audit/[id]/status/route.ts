@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
@@ -12,7 +13,7 @@ export async function GET(
   const { data: audit } = await supabase
     .from('audits')
     .select('id, status, prompts_total, prompts_completed, error_message, completed_at')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!audit) return NextResponse.json({ error: 'Audit not found' }, { status: 404 })

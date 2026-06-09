@@ -89,7 +89,8 @@ function PromptResultRow({ result, prompt }: { result: AuditResult; prompt: Prom
 
 // ─── Page ─────────────────────────────────────────────────
 
-export default async function ClientPage({ params }: { params: { id: string } }) {
+export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -98,7 +99,7 @@ export default async function ClientPage({ params }: { params: { id: string } })
   const { data: client } = await supabase
     .from('clients')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!client) notFound()
@@ -222,7 +223,7 @@ export default async function ClientPage({ params }: { params: { id: string } })
         {/* Score cards */}
         {latestScores.length > 0 ? (
           <div className="grid grid-cols-4 gap-4">
-            {(['overall', 'chatgpt', 'gemini', 'perplexity'] as const).map((platform) => {
+            {(['overall', 'chatgpt', 'gemini', 'claude'] as const).map((platform) => {
               const current = getScore(latestScores, platform)
               const prev = getScore(previousScores, platform)
               if (!current) return null

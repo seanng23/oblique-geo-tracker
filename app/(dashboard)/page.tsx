@@ -184,7 +184,7 @@ export default async function DashboardPage() {
                   const overall = scores.find((s) => s.platform === 'overall')
                   const chatgpt = scores.find((s) => s.platform === 'chatgpt')
                   const gemini = scores.find((s) => s.platform === 'gemini')
-                  const perplexity = scores.find((s) => s.platform === 'perplexity')
+                  const claude = scores.find((s) => s.platform === 'claude')
                   const latestAudit = latestAuditByClient[client.id]
 
                   return (
@@ -219,7 +219,7 @@ export default async function DashboardPage() {
                         <div className="space-y-1.5">
                           <PlatformBar label="ChatGPT" score={chatgpt?.score ?? null} />
                           <PlatformBar label="Gemini" score={gemini?.score ?? null} />
-                          <PlatformBar label="Perplexity" score={perplexity?.score ?? null} />
+                          <PlatformBar label="Claude" score={claude?.score ?? null} />
                         </div>
                       </td>
 
