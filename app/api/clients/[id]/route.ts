@@ -51,7 +51,8 @@ export async function PATCH(
   return NextResponse.json({ id }, { status: 200 })
 }
 
-// DELETE /api/clients/[id] — soft delete (deactivate) so audit history is kept
+// DELETE /api/clients/[id] — permanently delete a client and all its data.
+// Removes dependent rows in FK-safe order (reports + audit data have no/partial cascade).
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -62,7 +63,22 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const db = createServiceClient()
-  const { error } = await db.from('clients').update({ is_active: false }).eq('id', id)
+
+  // Collect this client's audit ids so we can clear audit_results (whose prompt_id
+  // FK has no cascade rule and would otherwise block prompt deletion).
+  const { data: audits } = await db.from('audits').select('id').eq('client_id', id)
+  const auditIds = (audits ?? []).map((a: { id: string }) => a.id)
+
+  await db.from('reports').delete().eq('client_id', id)
+  if (auditIds.length > 0) {
+    await db.from('audit_results').delete().in('audit_id', auditIds)
+  }
+  await db.from('visibility_scores').delete().eq('client_id', id)
+  await db.from('audits').delete().eq('client_id', id)
+  await db.from('prompts').delete().eq('client_id', id)
+  await db.from('competitors').delete().eq('client_id', id)
+
+  const { error } = await db.from('clients').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ id }, { status: 200 })

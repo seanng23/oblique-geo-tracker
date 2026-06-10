@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { RawQueryResult } from '@/lib/types'
 
-const MODEL = 'gemini-1.5-pro'
+const MODEL = 'gemini-2.5-flash'
 
 const SYSTEM_INSTRUCTION = `You are a helpful assistant. Answer the user's question directly and accurately.
 Provide a factual, balanced response based on your knowledge.`
@@ -16,7 +16,9 @@ export async function queryGemini(
     systemInstruction: SYSTEM_INSTRUCTION,
     generationConfig: {
       temperature: 0.3,
-      maxOutputTokens: 1024,
+      // 2.5-flash spends some of this budget on internal "thinking"; keep it
+      // generous so a usable answer still comes back.
+      maxOutputTokens: 2048,
     },
   })
 

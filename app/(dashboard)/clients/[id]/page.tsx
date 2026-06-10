@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Audit, AuditResult, Client, Competitor, Prompt, VisibilityScore } from '@/lib/types'
 import RunAuditButton from '@/app/components/RunAuditButton'
+import DeleteClientButton from '@/app/components/DeleteClientButton'
 
 function scoreColor(score: number) {
   return score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)'
@@ -97,6 +98,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Link href={`/clients/${c.id}/edit`} className="btn btn-ghost">Edit client</Link>
+          <DeleteClientButton clientId={c.id} clientName={c.name} />
           <RunAuditButton clientId={c.id} variant="solid" />
         </div>
       </div>
