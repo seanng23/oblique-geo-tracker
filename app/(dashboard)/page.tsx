@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import type { Client, VisibilityScore } from '@/lib/types'
+import type { Client, Platform, VisibilityScore } from '@/lib/types'
 import RunAuditButton from '@/app/components/RunAuditButton'
+import BillingAlert from '@/app/components/BillingAlert'
 
 function scoreColor(score: number) {
   return score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)'
@@ -88,6 +89,14 @@ export default async function DashboardPage() {
     { label: 'Audits this month', value: auditsThisMonth, sub: `across ${clients?.length ?? 0} clients` },
   ]
 
+  // A platform absent from EVERY recent audit's scores (despite completed audits)
+  // is a systemic key/billing failure, not per-client config.
+  const allScores = Object.values(scoresByClient).flat()
+  const hasCompletedAudit = Object.keys(latestAuditByClient).length > 0
+  const missingPlatforms: Platform[] = hasCompletedAudit
+    ? (['chatgpt', 'gemini', 'claude'] as Platform[]).filter((p) => !allScores.some((s) => s.platform === p))
+    : []
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <div className="topnav">
@@ -106,6 +115,8 @@ export default async function DashboardPage() {
       </div>
 
       <div className="main">
+        <BillingAlert missing={missingPlatforms} scope="all clients" />
+
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 28 }}>
           {stats.map((stat) => (

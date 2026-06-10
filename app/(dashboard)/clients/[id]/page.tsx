@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import type { Audit, AuditResult, Client, Competitor, Prompt, VisibilityScore } from '@/lib/types'
+import type { Audit, AuditResult, Client, Competitor, Platform, Prompt, VisibilityScore } from '@/lib/types'
 import RunAuditButton from '@/app/components/RunAuditButton'
 import DeleteClientButton from '@/app/components/DeleteClientButton'
+import BillingAlert from '@/app/components/BillingAlert'
 
 function scoreColor(score: number) {
   return score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)'
@@ -88,6 +89,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     overall: 'All platforms', chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude',
   }
 
+  // Platforms the prompts target but which produced no rows in the latest audit
+  // (errored out — usually a key/billing/quota problem).
+  const expectedPlatforms = new Set<Platform>()
+  for (const p of (prompts ?? []) as Prompt[]) for (const pl of p.platforms) expectedPlatforms.add(pl)
+  const presentPlatforms = new Set(latestResults.map((r) => r.platform))
+  const missingPlatforms: Platform[] = latestAudit && latestAudit.status === 'complete'
+    ? [...expectedPlatforms].filter((p) => !presentPlatforms.has(p))
+    : []
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <div className="topnav">
@@ -122,6 +132,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </div>
+
+        <BillingAlert missing={missingPlatforms} scope="this audit" />
 
         {/* Score cards */}
         {latestScores.length > 0 ? (
