@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import ClientForm from '@/app/components/ClientForm'
+import TopNav from '@/app/components/TopNav'
 
 export default async function NewClientPage() {
   const supabase = await createClient()
@@ -10,14 +10,7 @@ export default async function NewClientPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <div className="topnav">
-        <div className="nav-left">
-          <div className="nav-logo" />
-          <Link href="/" className="nav-dim">Dashboard</Link>
-          <span className="nav-sep">/</span>
-          <span style={{ fontWeight: 500 }}>Add client</span>
-        </div>
-      </div>
+      <TopNav back="/" crumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Add client' }]} />
 
       <div className="main" style={{ maxWidth: 720, padding: '36px 28px' }}>
         <div style={{ marginBottom: 24 }}>

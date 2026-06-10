@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
-import Link from 'next/link'
 import ClientForm, { type ClientFormInitial } from '@/app/components/ClientForm'
 import type { Client, Competitor, Prompt } from '@/lib/types'
+import TopNav from '@/app/components/TopNav'
 
 export default async function EditClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -54,16 +54,10 @@ export default async function EditClientPage({ params }: { params: Promise<{ id:
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <div className="topnav">
-        <div className="nav-left">
-          <div className="nav-logo" />
-          <Link href="/" className="nav-dim">Dashboard</Link>
-          <span className="nav-sep">/</span>
-          <Link href={`/clients/${id}`} className="nav-dim">{c.name}</Link>
-          <span className="nav-sep">/</span>
-          <span style={{ fontWeight: 500 }}>Edit</span>
-        </div>
-      </div>
+      <TopNav
+        back={`/clients/${id}`}
+        crumbs={[{ label: 'Dashboard', href: '/' }, { label: c.name, href: `/clients/${id}` }, { label: 'Edit' }]}
+      />
 
       <div className="main" style={{ maxWidth: 720, padding: '36px 28px' }}>
         <div style={{ marginBottom: 24 }}>

@@ -74,6 +74,13 @@ a:hover { text-decoration: underline; }
 .nav-sep { color: var(--border-strong); }
 .nav-dim { color: var(--faint); cursor: pointer; transition: color var(--t); }
 .nav-dim:hover { color: var(--muted); text-decoration: none; }
+.nav-back { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--r); color: var(--muted); border: 1px solid var(--border); background: var(--bg); transition: background var(--t), color var(--t), border-color var(--t); text-decoration: none; flex-shrink: 0; }
+.nav-back:hover { background: var(--surface); color: var(--ink); border-color: var(--border-strong); text-decoration: none; }
+
+/* ── Notification bell ── */
+.bell-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--r); border: 1px solid var(--border); background: var(--bg); color: var(--muted); cursor: pointer; transition: background var(--t), color var(--t), border-color var(--t); }
+.bell-btn:hover { background: var(--surface); color: var(--ink); border-color: var(--border-strong); }
+.bell-dot { position: absolute; top: 5px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); border: 1.5px solid var(--bg); }
 
 /* ── Buttons ── */
 .btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: var(--r); font-size: 12px; font-weight: 500; cursor: pointer; border: none; white-space: nowrap; font-family: var(--font); transition: background var(--t), box-shadow var(--t), border-color var(--t); text-decoration: none; }

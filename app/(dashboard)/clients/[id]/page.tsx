@@ -5,6 +5,7 @@ import type { Audit, AuditResult, Client, Competitor, Platform, Prompt, Visibili
 import RunAuditButton from '@/app/components/RunAuditButton'
 import DeleteClientButton from '@/app/components/DeleteClientButton'
 import BillingAlert from '@/app/components/BillingAlert'
+import TopNav from '@/app/components/TopNav'
 
 function scoreColor(score: number) {
   return score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)'
@@ -100,18 +101,17 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <div className="topnav">
-        <div className="nav-left">
-          <Link href="/" className="nav-dim">Dashboard</Link>
-          <span className="nav-sep">/</span>
-          <span style={{ fontWeight: 500 }}>{c.name}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Link href={`/clients/${c.id}/edit`} className="btn btn-ghost">Edit client</Link>
-          <DeleteClientButton clientId={c.id} clientName={c.name} />
-          <RunAuditButton clientId={c.id} variant="solid" />
-        </div>
-      </div>
+      <TopNav
+        back="/"
+        crumbs={[{ label: 'Dashboard', href: '/' }, { label: c.name }]}
+        actions={
+          <>
+            <Link href={`/clients/${c.id}/edit`} className="btn btn-ghost">Edit client</Link>
+            <DeleteClientButton clientId={c.id} clientName={c.name} />
+            <RunAuditButton clientId={c.id} variant="solid" />
+          </>
+        }
+      />
 
       <div className="main">
         {/* Client header */}

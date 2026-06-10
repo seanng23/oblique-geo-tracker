@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { Client, Platform, VisibilityScore } from '@/lib/types'
 import RunAuditButton from '@/app/components/RunAuditButton'
 import BillingAlert from '@/app/components/BillingAlert'
+import TopNav from '@/app/components/TopNav'
 
 function scoreColor(score: number) {
   return score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)'
@@ -99,20 +100,17 @@ export default async function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <div className="topnav">
-        <div className="nav-left">
-          <div className="nav-logo" />
-          <span className="nav-brand">Oblique GEO</span>
-          <span className="nav-sep">/</span>
-          <span style={{ color: 'var(--muted)', fontSize: 13 }}>Dashboard</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 11, color: 'var(--faint)' }}>
-            {now.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-          </span>
-          <Link href="/clients/new" className="btn btn-dark">+ Add client</Link>
-        </div>
-      </div>
+      <TopNav
+        crumbs={[{ label: 'Dashboard' }]}
+        actions={
+          <>
+            <span style={{ fontSize: 11, color: 'var(--faint)' }}>
+              {now.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+            <Link href="/clients/new" className="btn btn-dark">+ Add client</Link>
+          </>
+        }
+      />
 
       <div className="main">
         <BillingAlert missing={missingPlatforms} scope="all clients" />
