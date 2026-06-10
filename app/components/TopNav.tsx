@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import NotificationBell from './NotificationBell'
+import ObliqueLogo from './ObliqueLogo'
 
 interface Crumb {
   label: string
@@ -31,7 +32,7 @@ export default function TopNav({
           </Link>
         )}
         <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-          <span className="nav-logo" />
+          <ObliqueLogo size={22} />
           <span className="nav-brand">Oblique GEO</span>
         </Link>
         {crumbs.map((c, i) => (

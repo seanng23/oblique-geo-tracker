@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import ObliqueLogo from '@/app/components/ObliqueLogo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -41,7 +42,7 @@ export default function LoginPage() {
       <div style={{ width: '100%', maxWidth: 380, padding: '40px 20px' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, marginBottom: 18 }}>
-            <div className="nav-logo" />
+            <ObliqueLogo size={24} />
             <span style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-.01em', color: 'var(--ink)' }}>
               Oblique GEO
             </span>
