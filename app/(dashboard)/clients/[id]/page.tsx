@@ -6,6 +6,7 @@ import RunAuditButton from '@/app/components/RunAuditButton'
 import DeleteClientButton from '@/app/components/DeleteClientButton'
 import BillingAlert from '@/app/components/BillingAlert'
 import TopNav from '@/app/components/TopNav'
+import ReportsCard from '@/app/components/ReportsCard'
 
 function scoreColor(score: number) {
   return score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)'
@@ -55,6 +56,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     .from('competitors').select('*').eq('client_id', c.id)
   const { data: audits } = await supabase
     .from('audits').select('*').eq('client_id', c.id).order('started_at', { ascending: false }).limit(6)
+  const { data: reports } = await supabase
+    .from('reports').select('id, report_month, status, generated_at').eq('client_id', c.id).order('generated_at', { ascending: false }).limit(12)
 
   const latestAudit = (audits as Audit[] | null)?.[0]
   const previousAudit = (audits as Audit[] | null)?.[1]
@@ -285,6 +288,16 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               )}
             </div>
           </div>
+        </div>
+
+        {/* Reports */}
+        <div style={{ marginTop: 16 }}>
+          <ReportsCard
+            reports={(reports as any[]) ?? []}
+            latestCompleteAuditId={
+              ((audits as Audit[] | null) ?? []).find((a) => a.status === 'complete')?.id ?? null
+            }
+          />
         </div>
       </div>
     </div>

@@ -3,12 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 for (const line of fs.readFileSync('.env.local','utf8').split('\n')) {
   const m = line.match(/^([A-Z_]+)=(.*)$/); if (m) process.env[m[1]] = m[2].trim()
 }
-const { queryChatGPT } = await import('./lib/audit-engine/openai')
-const { queryGemini } = await import('./lib/audit-engine/gemini')
-const { queryClaude } = await import('./lib/audit-engine/claude')
-const { judgeResponse } = await import('./lib/audit-engine/judge')
-const { parseBrandMention, parseCompetitorMentions, extractCitationDomains, isClientDomainCited, detectPotentialHallucinations } = await import('./lib/audit-engine/parser')
-const { calculateScores } = await import('./lib/audit-engine/scorer')
+const { queryChatGPT } = await import('../lib/audit-engine/openai')
+const { queryGemini } = await import('../lib/audit-engine/gemini')
+const { queryClaude } = await import('../lib/audit-engine/claude')
+const { judgeResponse } = await import('../lib/audit-engine/judge')
+const { parseBrandMention, parseCompetitorMentions, extractCitationDomains, isClientDomainCited, detectPotentialHallucinations } = await import('../lib/audit-engine/parser')
+const { calculateScores } = await import('../lib/audit-engine/scorer')
 
 const RUNNERS: Record<string, any> = { chatgpt: queryChatGPT, gemini: queryGemini, claude: queryClaude }
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
