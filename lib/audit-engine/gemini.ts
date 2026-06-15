@@ -21,7 +21,7 @@ export async function queryGemini(
         systemInstruction: {
           parts: [
             {
-              text: 'You are a helpful assistant. Answer the question directly and factually for a user in Malaysia.',
+              text: 'You are a helpful assistant. Answer the question directly and factually. If the question names a country or city, answer for that location.',
             },
           ],
         },

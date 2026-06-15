@@ -13,17 +13,21 @@ function scoreColor(score: number) {
 }
 
 function ScoreCard({
-  platform, score, mentions, total, avgRank, delta,
+  platform, score, mentions, total, avgRank, delta, lowSample,
 }: {
-  platform: string; score: number; mentions: number; total: number; avgRank: number | null; delta: number | null
+  platform: string; score: number; mentions: number; total: number; avgRank: number | null; delta: number | null; lowSample?: boolean
 }) {
-  const c = scoreColor(score)
+  // Grey out the score when the sample is too small to trust (e.g. a platform
+  // that mostly rate-limited) so a 1/1 "100%" doesn't read as a real result.
+  const c = lowSample ? 'var(--faint)' : scoreColor(score)
   const deltaPill = delta == null ? null : delta >= 0 ? 'p-green' : 'p-red'
   return (
     <div className="card cp">
       <div className="sc-head">
         <span className="sc-plat">{platform}</span>
-        {delta != null && (
+        {lowSample ? (
+          <span className="pill p-amber" title="Too few successful API calls to be reliable — likely rate-limited. Re-run the audit.">Low sample</span>
+        ) : delta != null && (
           <span className={`pill ${deltaPill}`}>{delta > 0 ? '+' : ''}{delta.toFixed(0)}%</span>
         )}
       </div>
@@ -35,7 +39,9 @@ function ScoreCard({
         <div className="bf" style={{ width: `${score}%`, background: c }} />
       </div>
       <div className="sc-meta">{mentions} / {total} prompts matched</div>
-      {avgRank != null && <div className="sc-meta">Avg position: #{avgRank.toFixed(1)}</div>}
+      {lowSample
+        ? <div className="sc-meta" style={{ color: 'var(--warning)' }}>Only {total} call{total === 1 ? '' : 's'} succeeded — re-run for a reliable score</div>
+        : avgRank != null && <div className="sc-meta">Avg position: #{avgRank.toFixed(1)}</div>}
     </div>
   )
 }
@@ -145,6 +151,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               const cur = getScore(latestScores, platform)
               const prev = getScore(previousScores, platform)
               if (!cur) return null
+              // Low sample = a platform that ran far fewer prompts than the
+              // busiest one (e.g. rate-limited), so its % isn't trustworthy.
+              const maxPlatformTotal = Math.max(
+                ...latestScores.filter((s) => s.platform !== 'overall').map((s) => s.total_prompts),
+                1
+              )
+              const lowSample = platform !== 'overall' && cur.total_prompts < Math.max(3, maxPlatformTotal * 0.5)
               return (
                 <ScoreCard
                   key={platform}
@@ -154,6 +167,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   total={cur.total_prompts}
                   avgRank={cur.avg_rank}
                   delta={prev ? cur.score - prev.score : null}
+                  lowSample={lowSample}
                 />
               )
             })}

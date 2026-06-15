@@ -16,7 +16,7 @@ export async function queryClaude(
   const message = await client.messages.create({
     model: MODEL,
     max_tokens: 2048,
-    system: 'You are a helpful assistant. Answer the question directly and factually for a user in Malaysia.',
+    system: 'You are a helpful assistant. Answer the question directly and factually. If the question names a country or city, answer for that location.',
     messages: [{ role: 'user', content: promptText }],
     tools: [
       {

@@ -17,7 +17,7 @@ export async function queryChatGPT(
     model: MODEL,
     tools: [{ type: 'web_search' }],
     instructions:
-      'You are a helpful assistant. Answer the question directly and factually for a user in Malaysia.',
+      'You are a helpful assistant. Answer the question directly and factually. If the question names a country or city, answer for that location.',
     input: promptText,
   })
 
