@@ -8,6 +8,8 @@ import BillingAlert from '@/app/components/BillingAlert'
 import TopNav from '@/app/components/TopNav'
 import ReportsCard from '@/app/components/ReportsCard'
 import TrendChart from '@/app/components/TrendChart'
+import InternalInsights from '@/app/components/InternalInsights'
+import { buildSuggestions, collectHallucinationFlags } from '@/lib/insights'
 
 function scoreColor(score: number) {
   return score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)'
@@ -133,6 +135,12 @@ export default async function ClientPage({
   const missingPlatforms: Platform[] = latestAudit && latestAudit.status === 'complete'
     ? [...expectedPlatforms].filter((p) => !presentPlatforms.has(p))
     : []
+
+  // Internal-only insights (suggestions + hallucination risk) — never in the report.
+  const suggestions = latestResults.length > 0
+    ? buildSuggestions({ results: latestResults, promptMap, scores: latestScores, competitorFreq, missingPlatforms, clientName: c.name })
+    : []
+  const hallucinationFlags = collectHallucinationFlags(latestResults)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -360,6 +368,11 @@ export default async function ClientPage({
             </div>
           </div>
         </div>
+
+        {/* Internal-only insights — not shown to clients / not in the report */}
+        {latestResults.length > 0 && (
+          <InternalInsights suggestions={suggestions} flags={hallucinationFlags} />
+        )}
 
         {/* Reports */}
         <div style={{ marginTop: 16 }}>

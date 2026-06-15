@@ -31,7 +31,9 @@ async function withRetry(fn: () => Promise<any>, attempts = 3) {
   throw lastErr
 }
 
-const { data: client } = await db.from('clients').select('*').eq('name', 'Herbs of Gold').single()
+const CLIENT_NAME = process.argv[2] || 'Herbs of Gold'
+const { data: client } = await db.from('clients').select('*').eq('name', CLIENT_NAME).single()
+console.log('Auditing client:', CLIENT_NAME)
 const { data: prompts } = await db.from('prompts').select('*').eq('client_id', client.id).eq('is_active', true).order('sort_order')
 const { data: competitors } = await db.from('competitors').select('*').eq('client_id', client.id)
 
