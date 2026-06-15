@@ -35,15 +35,8 @@ const { data: client } = await db.from('clients').select('*').eq('name', 'Herbs 
 const { data: prompts } = await db.from('prompts').select('*').eq('client_id', client.id).eq('is_active', true).order('sort_order')
 const { data: competitors } = await db.from('competitors').select('*').eq('client_id', client.id)
 
-// Remove earlier partial/ungrounded audits so the dashboard's "latest" is the complete grounded run
-const { data: oldAudits } = await db.from('audits').select('id').eq('client_id', client.id)
-const oldIds = (oldAudits ?? []).map((a: any) => a.id)
-if (oldIds.length) {
-  await db.from('audit_results').delete().in('audit_id', oldIds)
-  await db.from('visibility_scores').delete().in('audit_id', oldIds)
-  await db.from('audits').delete().in('id', oldIds)
-  console.log(`Cleared ${oldIds.length} earlier audit(s).`)
-}
+// NOTE: history is intentionally preserved — each run appends a new audit
+// snapshot so the trend chart and period selector build up over time.
 
 const platforms = ['chatgpt', 'gemini', 'claude']
 const { data: audit } = await db.from('audits').insert({

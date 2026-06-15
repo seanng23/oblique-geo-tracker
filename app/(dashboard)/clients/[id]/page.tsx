@@ -7,6 +7,7 @@ import DeleteClientButton from '@/app/components/DeleteClientButton'
 import BillingAlert from '@/app/components/BillingAlert'
 import TopNav from '@/app/components/TopNav'
 import ReportsCard from '@/app/components/ReportsCard'
+import TrendChart from '@/app/components/TrendChart'
 
 function scoreColor(score: number) {
   return score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)'
@@ -46,8 +47,14 @@ function ScoreCard({
   )
 }
 
-export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClientPage({
+  params, searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ audit?: string }>
+}) {
   const { id } = await params
+  const { audit: selectedAuditId } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -60,28 +67,47 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     .from('prompts').select('*').eq('client_id', c.id).eq('is_active', true).order('sort_order')
   const { data: competitors } = await supabase
     .from('competitors').select('*').eq('client_id', c.id)
-  const { data: audits } = await supabase
-    .from('audits').select('*').eq('client_id', c.id).order('started_at', { ascending: false }).limit(6)
+  const { data: auditsRaw } = await supabase
+    .from('audits').select('*').eq('client_id', c.id).order('started_at', { ascending: false }).limit(12)
+  const audits = (auditsRaw as Audit[] | null) ?? []
   const { data: reports } = await supabase
     .from('reports').select('id, report_month, status, generated_at').eq('client_id', c.id).order('generated_at', { ascending: false }).limit(12)
 
-  const latestAudit = (audits as Audit[] | null)?.[0]
-  const previousAudit = (audits as Audit[] | null)?.[1]
+  // Load scores for every audit at once → powers the trend chart and period tabs.
+  const scoresByAudit: Record<string, VisibilityScore[]> = {}
+  if (audits.length) {
+    const { data: allScores } = await supabase
+      .from('visibility_scores').select('*').in('audit_id', audits.map((a) => a.id))
+    for (const s of (allScores as VisibilityScore[] | null) ?? []) (scoresByAudit[s.audit_id] ??= []).push(s)
+  }
 
-  let latestScores: VisibilityScore[] = []
-  let previousScores: VisibilityScore[] = []
+  // History = audits that actually produced scores (ignore empty/failed shells), newest first.
+  const history = audits.filter((a) => (scoresByAudit[a.id]?.length ?? 0) > 0)
+
+  // Which audit are we viewing? ?audit= if valid, else the most recent with data.
+  const latestAudit = (selectedAuditId && history.find((a) => a.id === selectedAuditId)) || history[0] || audits[0]
+  const selIdx = latestAudit ? history.findIndex((a) => a.id === latestAudit.id) : -1
+  const previousAudit = selIdx >= 0 ? history[selIdx + 1] : undefined
+  const viewingHistorical = selIdx > 0
+
+  const latestScores: VisibilityScore[] = latestAudit ? (scoresByAudit[latestAudit.id] ?? []) : []
+  const previousScores: VisibilityScore[] = previousAudit ? (scoresByAudit[previousAudit.id] ?? []) : []
+
   let latestResults: AuditResult[] = []
-
   if (latestAudit) {
-    const { data: scores } = await supabase.from('visibility_scores').select('*').eq('audit_id', latestAudit.id)
-    latestScores = (scores as VisibilityScore[]) ?? []
     const { data: results } = await supabase.from('audit_results').select('*').eq('audit_id', latestAudit.id).order('created_at')
     latestResults = (results as AuditResult[]) ?? []
   }
-  if (previousAudit) {
-    const { data: scores } = await supabase.from('visibility_scores').select('*').eq('audit_id', previousAudit.id)
-    previousScores = (scores as VisibilityScore[]) ?? []
-  }
+
+  // Chronological points for the trend chart.
+  const trendPoints = [...history].reverse().map((a) => {
+    const sc = scoresByAudit[a.id] ?? []
+    const pick = (p: string) => sc.find((x) => x.platform === p)?.score ?? null
+    return {
+      label: new Date(a.started_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }),
+      overall: pick('overall'), chatgpt: pick('chatgpt'), gemini: pick('gemini'), claude: pick('claude'),
+    }
+  })
 
   const getScore = (s: VisibilityScore[], p: string) => s.find((x) => x.platform === p)
   const promptMap = Object.fromEntries((prompts ?? []).map((p: Prompt) => [p.id, p]))
@@ -135,12 +161,43 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </div>
           {latestAudit && (
             <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 6 }}>
-              Last audit: {new Date(latestAudit.started_at).toLocaleString('en-MY', {
+              {viewingHistorical ? 'Viewing audit: ' : 'Last audit: '}
+              {new Date(latestAudit.started_at).toLocaleString('en-MY', {
                 day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
               })}
+              {viewingHistorical && (
+                <Link href={`/clients/${c.id}`} style={{ marginLeft: 8, fontSize: 11 }}>← back to latest</Link>
+              )}
             </div>
           )}
         </div>
+
+        {/* Period selector — pick which audit snapshot to view */}
+        {history.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'var(--surface-2)', borderRadius: 9, padding: 3, marginBottom: 16, width: 'fit-content', flexWrap: 'wrap' }}>
+            {history.map((a, i) => {
+              const on = a.id === latestAudit?.id
+              return (
+                <Link
+                  key={a.id}
+                  href={i === 0 ? `/clients/${c.id}` : `/clients/${c.id}?audit=${a.id}`}
+                  style={{
+                    padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500, textDecoration: 'none',
+                    color: on ? 'var(--ink)' : 'var(--faint)',
+                    background: on ? 'var(--bg)' : 'transparent',
+                    boxShadow: on ? 'var(--shadow-sm)' : 'none',
+                  }}
+                >
+                  {new Date(a.started_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {i === 0 && <span style={{ fontSize: 10, color: 'var(--faint)', marginLeft: 5 }}>latest</span>}
+                </Link>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Visibility trend over time */}
+        {trendPoints.length > 0 && <TrendChart points={trendPoints} />}
 
         <BillingAlert missing={missingPlatforms} scope="this audit" />
 
