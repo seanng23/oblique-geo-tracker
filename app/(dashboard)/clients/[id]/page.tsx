@@ -9,6 +9,7 @@ import TopNav from '@/app/components/TopNav'
 import ReportsCard from '@/app/components/ReportsCard'
 import TrendChart from '@/app/components/TrendChart'
 import InternalInsights from '@/app/components/InternalInsights'
+import PromptResultsTable, { type PromptRow } from '@/app/components/PromptResultsTable'
 import { buildSuggestions, collectHallucinationFlags } from '@/lib/insights'
 
 function scoreColor(score: number) {
@@ -113,8 +114,6 @@ export default async function ClientPage({
 
   const getScore = (s: VisibilityScore[], p: string) => s.find((x) => x.platform === p)
   const promptMap = Object.fromEntries((prompts ?? []).map((p: Prompt) => [p.id, p]))
-  const mentioned = latestResults.filter((r) => r.brand_mentioned)
-  const missed = latestResults.filter((r) => !r.brand_mentioned)
 
   const competitorFreq: Record<string, number> = {}
   for (const r of latestResults) {
@@ -141,6 +140,18 @@ export default async function ClientPage({
     ? buildSuggestions({ results: latestResults, promptMap, scores: latestScores, competitorFreq, missingPlatforms, clientName: c.name })
     : []
   const hallucinationFlags = collectHallucinationFlags(latestResults)
+
+  const promptRows: PromptRow[] = latestResults.map((r) => ({
+    id: r.id,
+    promptText: promptMap[r.prompt_id]?.text ?? '—',
+    category: promptMap[r.prompt_id]?.category ?? null,
+    platform: r.platform,
+    brand_mentioned: r.brand_mentioned,
+    brand_rank: r.brand_rank,
+    mention_status: r.mention_status,
+    sentiment: r.sentiment,
+    latency_ms: r.latency_ms,
+  }))
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -246,56 +257,17 @@ export default async function ClientPage({
 
         {/* Prompt results + sidebar */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 16 }}>
-          {/* Prompt results */}
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Prompt results</span>
-              <div style={{ display: 'flex', gap: 10, fontSize: 11.5 }}>
-                <span style={{ color: 'var(--success)', fontWeight: 500 }}>✓ {mentioned.length} found</span>
-                <span style={{ color: 'var(--danger)' }}>✗ {missed.length} missing</span>
+          {/* Prompt results — filterable / grouped by platform */}
+          {latestResults.length === 0 ? (
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Prompt results</span>
               </div>
-            </div>
-            {latestResults.length === 0 ? (
               <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--faint)' }}>No results yet</div>
-            ) : (
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th>Prompt</th><th>Platform</th><th>Status</th><th>Sentiment</th><th>Latency</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {latestResults.map((r) => {
-                    const p = promptMap[r.prompt_id]
-                    return (
-                      <tr key={r.id}>
-                        <td>
-                          <div style={{ fontSize: 12.5, maxWidth: 240, lineHeight: 1.4 }}>{p?.text ?? '—'}</div>
-                          {p?.category && (
-                            <span className="pill p-grey" style={{ fontSize: 9.5, marginTop: 4 }}>{p.category}</span>
-                          )}
-                        </td>
-                        <td style={{ fontSize: 11.5, color: 'var(--muted)', textTransform: 'capitalize' }}>{r.platform}</td>
-                        <td>
-                          <span className={`pill ${r.brand_mentioned ? (r.mention_status === 'outranked' ? 'p-weak' : 'p-green') : 'p-grey'}`}>
-                            {r.brand_mentioned ? `✓ Rank #${r.brand_rank ?? '?'}` : '✗ Not found'}
-                          </span>
-                        </td>
-                        <td>
-                          {r.sentiment && (
-                            <span style={{ fontSize: 12, color: r.sentiment === 'positive' ? 'var(--success)' : r.sentiment === 'negative' ? 'var(--danger)' : 'var(--muted)' }}>
-                              {r.sentiment}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ fontSize: 11, color: 'var(--faint)' }}>{r.latency_ms ? `${r.latency_ms}ms` : '—'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
+            </div>
+          ) : (
+            <PromptResultsTable rows={promptRows} auditDate={latestAudit ? latestAudit.started_at : null} />
+          )}
 
           {/* Sidebar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
