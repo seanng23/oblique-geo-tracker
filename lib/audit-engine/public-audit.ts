@@ -72,16 +72,27 @@ function buildPrompts(input: PublicAuditInput, location: string | null): string[
   if (kw[1]) prompts.push(`I'm looking for ${kw[1]}${where}. What are my best options?`)
   prompts.push(`Which ${industry} companies${where} would you suggest for someone buying for the first time?`)
 
-  // Cap at 5 to stay inside the serverless time + cost budget.
-  return prompts.slice(0, 5)
+  // Cap at 4 to stay inside the serverless time + cost budget (fewer calls = less
+  // rate-limit pressure = fewer retries = finishes faster, well under the 60s cap).
+  return prompts.slice(0, 4)
 }
 
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)) }
 
+// Reject if a promise hasn't settled within `ms`. Bounds each unit's total time so
+// one slow/hung AI call can't push the whole audit past Vercel's 60s function limit
+// (which would kill the function and surface as "Failed to fetch" in the browser).
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms)
+    promise.then((v) => { clearTimeout(t); resolve(v) }, (e) => { clearTimeout(t); reject(e) })
+  })
+}
+
 // Retry transient failures (503 overloaded / 429 rate limit). Kept short so the
 // whole parallel batch still finishes inside the serverless budget. Without this,
 // a provider's temporary 503 silently shrinks its denominator and skews the score.
-async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
   let lastErr: unknown
   for (let i = 0; i < attempts; i++) {
     try {
@@ -92,7 +103,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
         const msg = err instanceof Error ? err.message : String(err)
         const transient = /\b(429|503|500|502|504|overload|rate limit|unavailable|high demand)\b/i.test(msg)
         if (!transient) break
-        await sleep(2000 * (i + 1))
+        await sleep(1500)
       }
     }
   }
@@ -180,7 +191,13 @@ export async function runPublicAudit(input: PublicAuditInput): Promise<PublicAud
   const settled = await Promise.allSettled(
     units.map(async (u) => {
       const provider = PLATFORMS.find((p) => p.key === u.platform)!
-      const res = await withRetry(() => provider.run(prompts[u.promptIdx], `pub-${u.platform}-${u.promptIdx}`))
+      // Per-attempt timeout (30s) so one hung call can't stall the unit; outer cap
+      // (48s) bounds the unit including its retry. All units run in parallel, so the
+      // whole audit's wall time is ~the slowest unit, kept safely under the 60s limit.
+      const res = await withTimeout(
+        withRetry(() => withTimeout(provider.run(prompts[u.promptIdx], `pub-${u.platform}-${u.promptIdx}`), 30000)),
+        48000
+      )
       const text = res.raw_response
       const brand = parseBrandMention(text, input.brand, [])
       const comp = parseCompetitorMentions(text, competitors)
@@ -212,7 +229,14 @@ export async function runPublicAudit(input: PublicAuditInput): Promise<PublicAud
 
   const totalUnits = platforms.reduce((s, p) => s + p.total, 0)
   const totalMentions = platforms.reduce((s, p) => s + p.mentions, 0)
-  const overallVisibilityPct = totalUnits ? Math.round((totalMentions / totalUnits) * 100) : 0
+
+  // If not a single call completed, the engines were down/overloaded — don't return
+  // a misleading "0% visible". Surface an error so the user can retry.
+  if (totalUnits === 0) {
+    throw new Error('The AI engines were briefly unavailable. Please try again in a moment.')
+  }
+
+  const overallVisibilityPct = Math.round((totalMentions / totalUnits) * 100)
 
   // Competitor visibility across all completed runs. We combine the user's named
   // competitors with brands AI *itself* surfaced in the answers (auto-discovery) —
