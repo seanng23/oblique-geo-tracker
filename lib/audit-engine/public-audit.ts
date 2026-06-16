@@ -101,7 +101,10 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
       lastErr = err
       if (i < attempts - 1) {
         const msg = err instanceof Error ? err.message : String(err)
+        // Retry brief overloads / per-minute rate limits — but NOT hard quota/billing
+        // caps (those won't recover in 1.5s, so retrying just burns the time budget).
         const transient = /\b(429|503|500|502|504|overload|rate limit|unavailable|high demand)\b/i.test(msg)
+          && !/quota|billing|exceeded your current/i.test(msg)
         if (!transient) break
         await sleep(1500)
       }
