@@ -69,11 +69,34 @@ function buildPrompts(input: PublicAuditInput, location: string | null): string[
     `Can you recommend a trusted ${industry} company${where}?`,
   ]
   if (kw[0]) prompts.push(`Who are the top providers of ${kw[0]}${where}?`)
-  if (kw[1]) prompts.push(`I'm looking for ${kw[1]}${where} — what are my best options?`)
+  if (kw[1]) prompts.push(`I'm looking for ${kw[1]}${where}. What are my best options?`)
   prompts.push(`Which ${industry} companies${where} would you suggest for someone buying for the first time?`)
 
   // Cap at 5 to stay inside the serverless time + cost budget.
   return prompts.slice(0, 5)
+}
+
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)) }
+
+// Retry transient failures (503 overloaded / 429 rate limit). Kept short so the
+// whole parallel batch still finishes inside the serverless budget. Without this,
+// a provider's temporary 503 silently shrinks its denominator and skews the score.
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      if (i < attempts - 1) {
+        const msg = err instanceof Error ? err.message : String(err)
+        const transient = /\b(429|503|500|502|504|overload|rate limit|unavailable|high demand)\b/i.test(msg)
+        if (!transient) break
+        await sleep(2000 * (i + 1))
+      }
+    }
+  }
+  throw lastErr
 }
 
 export async function runPublicAudit(input: PublicAuditInput): Promise<PublicAuditResult> {
@@ -92,7 +115,7 @@ export async function runPublicAudit(input: PublicAuditInput): Promise<PublicAud
   const settled = await Promise.allSettled(
     units.map(async (u) => {
       const provider = PLATFORMS.find((p) => p.key === u.platform)!
-      const res = await provider.run(prompts[u.promptIdx], `pub-${u.platform}-${u.promptIdx}`)
+      const res = await withRetry(() => provider.run(prompts[u.promptIdx], `pub-${u.platform}-${u.promptIdx}`))
       const text = res.raw_response
       const brand = parseBrandMention(text, input.brand, [])
       const comp = parseCompetitorMentions(text, competitors)
