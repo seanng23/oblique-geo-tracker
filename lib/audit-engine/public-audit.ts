@@ -99,6 +99,71 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   throw lastErr
 }
 
+// Whole-word, case-insensitive match (so "Getha" doesn't match inside "together").
+function matchesWord(text: string, name: string): boolean {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?<![\\w])${escaped}(?![\\w])`, 'i').test(text)
+}
+
+function dedupeNames(names: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const n of names) {
+    const key = n.toLowerCase().trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(n.trim())
+  }
+  return out
+}
+
+const GENERIC_TERMS = new Set([
+  'the', 'best', 'top', 'your', 'our', 'a', 'an', 'for', 'in', 'of', 'and', 'or', 'to', 'with', 'on',
+  'brands', 'companies', 'company', 'brand', 'options', 'option', 'services', 'service', 'products',
+  'product', 'here', 'these', 'those', 'consider', 'choose', 'look', 'popular', 'leading', 'trusted',
+  'recommended', 'first', 'time', 'overview', 'summary', 'note', 'tip', 'tips', 'key', 'factors',
+  'malaysia', 'singapore', 'indonesia', 'thailand', 'philippines', 'asia', 'reputation', 'quality',
+  'price', 'pricing', 'value', 'customer', 'support', 'example', 'examples', 'others', 'more', 'overall',
+])
+
+// Heuristic competitor discovery: pull brand-like names from the list items AI
+// produced. Approximate (no NER), so we filter generic terms, require a name to
+// appear in multiple responses, and cap the count. Names AI volunteered repeatedly
+// across answers are almost always real category players competing for the visibility.
+function discoverCompetitors(texts: string[], ownBrand: string, exclude: string[]): string[] {
+  const excludeLc = new Set([ownBrand, ...exclude].map((s) => s.toLowerCase().trim()))
+  const tally = new Map<string, { name: string; count: number }>()
+
+  for (const text of texts) {
+    const found = new Set<string>()
+    const re = /(?:^|\n)\s*(?:\d+[.)]|[-•*])\s*\*{0,2}([A-Z][A-Za-z0-9&'’.\- ]{1,40})/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text)) !== null) {
+      const name = m[1].split(/[-–—:(,.]/)[0].replace(/\*+/g, '').replace(/['’]s$/i, '').trim()
+      const words = name.split(/\s+/).filter(Boolean)
+      if (words.length === 0 || words.length > 4) continue
+      const lc = name.toLowerCase()
+      if (lc.length < 2 || excludeLc.has(lc)) continue
+      // Must contain at least one capitalised, non-generic token to look like a brand.
+      const sig = words.filter((w) => /^[A-Z]/.test(w) && !GENERIC_TERMS.has(w.toLowerCase()))
+      if (sig.length === 0) continue
+      found.add(name)
+    }
+    for (const n of found) {
+      const k = n.toLowerCase()
+      tally.set(k, { name: n, count: (tally.get(k)?.count ?? 0) + 1 })
+    }
+  }
+
+  const totalTexts = texts.length || 1
+  const minCount = Math.max(2, Math.ceil(totalTexts * 0.2))
+  return [...tally.values()]
+    .filter((v) => v.count >= minCount)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6)
+    .map((v) => v.name)
+}
+
 export async function runPublicAudit(input: PublicAuditInput): Promise<PublicAuditResult> {
   const location = inferLocation(input.website)
   const prompts = buildPrompts(input, location)
@@ -122,6 +187,7 @@ export async function runPublicAudit(input: PublicAuditInput): Promise<PublicAud
       const domains = extractCitationDomains(text + '\n' + (res.citations ?? []).join('\n'))
       return {
         platform: u.platform,
+        text,
         mentioned: brand.mentioned,
         sentiment: brand.sentiment,
         competitorMentions: comp,
@@ -148,16 +214,22 @@ export async function runPublicAudit(input: PublicAuditInput): Promise<PublicAud
   const totalMentions = platforms.reduce((s, p) => s + p.mentions, 0)
   const overallVisibilityPct = totalUnits ? Math.round((totalMentions / totalUnits) * 100) : 0
 
-  // Competitor visibility across all completed runs.
+  // Competitor visibility across all completed runs. We combine the user's named
+  // competitors with brands AI *itself* surfaced in the answers (auto-discovery) —
+  // those are the names winning the visibility the brand isn't.
   const fulfilled = settled.filter((s) => s.status === 'fulfilled') as PromiseFulfilledResult<any>[]
-  const competitorStats = competitors.map((c) => {
-    const total = fulfilled.length
-    const mentions = fulfilled.filter((s) => s.value.competitorMentions[c.name] !== null).length
-    return { name: c.name, mentions, total, visibilityPct: total ? Math.round((mentions / total) * 100) : 0 }
-  })
-  const topCompetitor = competitorStats.length
-    ? competitorStats.reduce((a, b) => (b.visibilityPct > a.visibilityPct ? b : a))
-    : null
+  const fulfilledTexts = fulfilled.map((s) => s.value.text as string)
+  const providedNames = competitors.map((c) => c.name)
+  const discovered = discoverCompetitors(fulfilledTexts, input.brand, providedNames)
+  const candidateNames = dedupeNames([...providedNames, ...discovered]).slice(0, 6)
+
+  const total = fulfilledTexts.length
+  const competitorStats = candidateNames.map((name) => {
+    const mentions = fulfilledTexts.filter((t) => matchesWord(t, name)).length
+    return { name, mentions, total, visibilityPct: total ? Math.round((mentions / total) * 100) : 0 }
+  }).sort((a, b) => b.visibilityPct - a.visibilityPct)
+
+  const topCompetitor = competitorStats.length ? competitorStats[0] : null
 
   // Domain citation: cited on at least one run.
   const domainCited = fulfilled.some((s) => s.value.domainCited)
